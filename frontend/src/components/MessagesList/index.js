@@ -315,6 +315,11 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const [loading, setLoading] = useState(false);
   const lastMessageRef = useRef();
 
+  // Estado para CPF/CNPJ e dados do boleto
+  const [cpfCnpj, setCpfCnpj] = useState("");
+  const [boletoData, setBoletoData] = useState(null);
+  const [loadingBoleto, setLoadingBoleto] = useState(false);
+
   const [selectedMessage, setSelectedMessage] = useState({});
   const [anchorEl, setAnchorEl] = useState(null);
   const messageOptionsMenuOpen = Boolean(anchorEl);
@@ -415,6 +420,44 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
   const handleCloseMessageOptionsMenu = (e) => {
     setAnchorEl(null);
   };
+
+    // Função para consultar a segunda via do boleto
+    const consultarBoleto = async () => {
+      if (!cpfCnpj) return;
+      setLoadingBoleto(true);
+      try {
+        // Primeiro, validar o CPF/CNPJ
+        const { data: clienteData } = await api.get('https://api-bemtevi.ksys.net.br/cliente', {
+          params: { cpfcnpj: cpfCnpj },
+          headers: { 'token': 'YOUR_FIXED_TOKEN' }
+        });
+  
+        if (clienteData.cod_cliente) {
+          // Se o cliente existir, consultar a segunda via do boleto
+          const { data: boletoData } = await api.post('https://api-bemtevi.ksys.net.br/cobranca/segundaVia', {
+            cpfcnpj: cpfCnpj,
+            cod_cliente: clienteData.cod_cliente
+          }, {
+            headers: { 'token': 'YOUR_FIXED_TOKEN' }
+          });
+          setBoletoData(boletoData);
+        } else {
+          toastError("Cliente não encontrado");
+        }
+      } catch (error) {
+        toastError(error);
+      } finally {
+        setLoadingBoleto(false);
+      }
+    };
+  
+    const handleCpfCnpjChange = (e) => {
+      setCpfCnpj(e.target.value);
+    };
+  
+    const handleConsultarClick = () => {
+      consultarBoleto();
+    };
 
   const checkMessageMedia = (message) => {
     if (message.mediaType === "locationMessage" && message.body.split('|').length >= 2) {
@@ -657,8 +700,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
 
   const renderMessages = () => {
     if (messagesList.length > 0) {
-      const viewMessagesList = messagesList.map((message, index) => {
-
+      return messagesList.map((message, index) => {
         if (message.mediaType === "call_log") {
           return (
             <React.Fragment key={message.id}>
@@ -683,134 +725,52 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
                 )}
                 <div>
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 17" width="20" height="17">
-                    <path fill="#df3333" d="M18.2 12.1c-1.5-1.8-5-2.7-8.2-2.7s-6.7 1-8.2 2.7c-.7.8-.3 2.3.2 2.8.2.2.3.3.5.3 1.4 0 3.6-.7 3.6-.7.5-.2.8-.5.8-1v-1.3c.7-1.2 5.4-1.2 6.4-.1l.1.1v1.3c0 .2.1.4.2.6.1.2.3.3.5.4 0 0 2.2.7 3.6.7.2 0 1.4-2 .5-3.1zM5.4 3.2l4.7 4.6 5.8-5.7-.9-.8L10.1 6 6.4 2.3h2.5V1H4.1v4.8h1.3V3.2z"></path>
-                  </svg> <span>Chamada de voz/vídeo perdida às {format(parseISO(message.createdAt), "HH:mm")}</span>
+                    <path fill="#df3333" d="M18.2 12.1c-1.5-1.8-5-2.7-8.2-2.7s-6.7 1-8.2 2.7c-.7.8-.3 2.3.2 2.8.2.2.3.3.5.3 1.4 0 3.6-.7 3.6-.7.5-.2.8-.5.8-1v-1.3c.7-1.2 5.4-1.2 6.4-.1l.1.1v1.3c0 .2.1.4.2.6.1.2.3.3.5.4 0 0 2.2.7 3.6.7.2 0 1.4-2 .5-3.1zM5.4 3.2l4.7 4.6 5.8-5.7-.9-.8L10.1 6 6.4 2.3 5.4 3.2zM13.2 1.1l-.8-.8c-.5-.5-1.3-.5-1.8 0L9.7 2 6.8 1.2c-1.1-.2-1.5 1.4-.5 2.4l3.3 3.3L13.2 1.1zM2 1.7c-.3.1-.6.3-.9.5-1.6 1.7-1.6 4.4 0 6.1L4 4.6l2.5-2.5c.2-.2.2-.5.2-.7 0-.3-.1-.5-.2-.7l-.8-.8C4.7.9 3.2.9 2 1.7zM18.2 8c-.4.3-.8.6-1.2.8-.8.6-1.8.8-2.8.8-.5 0-1.1-.1-1.6-.3-.8-.3-1.5-.7-2.1-1.2-.2-.2-.3-.4-.4-.6-.3-.7-.4-1.5-.4-2.3V3.5c.2-.3.5-.6.8-.9.8-.6 1.8-.9 2.8-.9.9 0 1.7.3 2.4.8.2.2.3.5.3.7 0 .3-.1.5-.3.7l-1.3 1.3c-.5.5-1.2.8-1.9.8-.5 0-1.1-.2-1.6-.4-.3-.2-.6-.5-.8-.8-.3-.5-.5-1.1-.5-1.7 0-.8.2-1.5.5-2.2.2-.2.5-.5.8-.7.4-.3.8-.5 1.3-.5.8 0 1.6.4 2.2 1.1l1.2 1.2c.5.5.8 1.2.8 1.9V8z" />
+                  </svg>
                 </div>
               </div>
+              <div ref={lastMessageRef} />
             </React.Fragment>
           );
         }
-
-        if (!message.fromMe) {
-          return (
-            <React.Fragment key={message.id}>
-              {renderDailyTimestamps(message, index)}
-              {renderNumberTicket(message, index)}
-              {renderMessageDivider(message, index)}
-              <div className={classes.messageLeft}>
-                <IconButton
-                  variant="contained"
-                  size="small"
-                  id="messageActionsButton"
-                  disabled={message.isDeleted}
-                  className={classes.messageActionsButton}
-                  onClick={(e) => handleOpenMessageOptionsMenu(e, message)}
-                >
-                  <ExpandMore />
-                </IconButton>
-                {isGroup && (
-                  <span className={classes.messageContactName}>
-                    {message.contact?.name}
-                  </span>
-                )}
-
-                {/* aviso de mensagem apagado pelo contato */}
-                {message.isDeleted && (
-                  <div>
-                    <span className={"message-deleted"}
-                    >Essa mensagem foi apagada pelo contato &nbsp;
-                      <Block
-                        color="error"
-                        fontSize="small"
-                        className={classes.deletedIcon}
-                      />
-                    </span>
-                  </div>
-                )}
-
-                {(message.mediaUrl || message.mediaType === "locationMessage" || message.mediaType === "vcard"
-                  //|| message.mediaType === "multi_vcard" 
-                ) && checkMessageMedia(message)}
-                <div className={classes.textContentItem}>
-                  {message.quotedMsg && renderQuotedMessage(message)}
-                  <MarkdownWrapper>{message.mediaType === "locationMessage" ? null : message.body}</MarkdownWrapper>
-                  <span className={classes.timestamp}>
-                    {format(parseISO(message.createdAt), "HH:mm")}
-                  </span>
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        } else {
-          return (
-            <React.Fragment key={message.id}>
-              {renderDailyTimestamps(message, index)}
-              {renderNumberTicket(message, index)}
-              {renderMessageDivider(message, index)}
-              <div className={classes.messageRight}>
-                <IconButton
-                  variant="contained"
-                  size="small"
-                  id="messageActionsButton"
-                  disabled={message.isDeleted}
-                  className={classes.messageActionsButton}
-                  onClick={(e) => handleOpenMessageOptionsMenu(e, message)}
-                >
-                  <ExpandMore />
-                </IconButton>
-                {(message.mediaUrl || message.mediaType === "locationMessage" || message.mediaType === "vcard"
-                  //|| message.mediaType === "multi_vcard" 
-                ) && checkMessageMedia(message)}
-                <div
-                  className={clsx(classes.textContentItem, {
-                    [classes.textContentItemDeleted]: message.isDeleted,
-                  })}
-                >
-                  {message.isDeleted && (
-                    <Block
-                      color="disabled"
-                      fontSize="small"
-                      className={classes.deletedIcon}
-                    />
-                  )}
-                  {message.quotedMsg && renderQuotedMessage(message)}
-                  <MarkdownWrapper>{message.body}</MarkdownWrapper>
-                  <span className={classes.timestamp}>
-                    {format(parseISO(message.createdAt), "HH:mm")}
-                    {renderMessageAck(message)}
-                  </span>
-                </div>
-              </div>
-            </React.Fragment>
-          );
-        }
+        return (
+          <React.Fragment key={message.id}>
+            {renderDailyTimestamps(message, index)}
+            {renderQuotedMessage(message)}
+            {renderMessageDivider(message, index)}
+            <div ref={lastMessageRef} />
+          </React.Fragment>
+        );
       });
-      return viewMessagesList;
-    } else {
-      return <div>Diga olá para seu novo contato!</div>;
     }
+    return null;
   };
 
   return (
-    <div className={classes.messagesListWrapper}>
-      <MessageOptionsMenu
-        message={selectedMessage}
-        anchorEl={anchorEl}
-        menuOpen={messageOptionsMenuOpen}
-        handleClose={handleCloseMessageOptionsMenu}
-      />
-      <div
-        id="messagesList"
-        className={classes.messagesList}
-        onScroll={handleScroll}
-      >
-        {messagesList.length > 0 ? renderMessages() : []}
+    <div
+      id="messagesList"
+      className={classes.messagesList}
+      onScroll={handleScroll}
+    >
+      {renderMessages()}
+      <div>
+        <input
+          type="text"
+          value={cpfCnpj}
+          onChange={handleCpfCnpjChange}
+          placeholder="Digite o CPF ou CNPJ"
+        />
+        <Button onClick={handleConsultarClick} disabled={loadingBoleto}>
+          {loadingBoleto ? <CircularProgress size={24} /> : "Consultar Boleto"}
+        </Button>
+        {boletoData && (
+          <div>
+            <a href={boletoData.pdfUrl} target="_blank" rel="noopener noreferrer">
+              Baixar Segunda Via
+            </a>
+          </div>
+        )}
       </div>
-      {loading && (
-        <div>
-          <CircularProgress className={classes.circleLoading} />
-        </div>
-      )}
     </div>
   );
 };
