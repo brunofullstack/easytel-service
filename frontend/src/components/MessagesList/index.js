@@ -429,7 +429,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
         // Primeiro, validar o CPF/CNPJ
         const { data: clienteData } = await api.get('https://api-bemtevi.ksys.net.br/cliente', {
           params: { cpfcnpj: cpfCnpj },
-          headers: { 'token': 'YOUR_FIXED_TOKEN' }
+          headers: { 'token': '2GcnHKD667427f5b8537' }
         });
   
         if (clienteData.cod_cliente) {
@@ -438,7 +438,7 @@ const MessagesList = ({ ticket, ticketId, isGroup }) => {
             cpfcnpj: cpfCnpj,
             cod_cliente: clienteData.cod_cliente
           }, {
-            headers: { 'token': 'YOUR_FIXED_TOKEN' }
+            headers: { 'token': '2GcnHKD667427f5b8537' }
           });
           setBoletoData(boletoData);
         } else {
