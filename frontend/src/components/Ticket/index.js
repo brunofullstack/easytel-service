@@ -4,7 +4,7 @@ import { useParams, useHistory } from "react-router-dom";
 import { toast } from "react-toastify";
 import clsx from "clsx";
 
-import { Paper, makeStyles } from "@material-ui/core";
+import { Paper, makeStyles, TextField, Button } from "@material-ui/core";
 
 import ContactDrawer from "../ContactDrawer";
 import MessageInput from "../MessageInputCustom/";
@@ -67,6 +67,8 @@ const Ticket = () => {
   const [loading, setLoading] = useState(true);
   const [contact, setContact] = useState({});
   const [ticket, setTicket] = useState({});
+  const [cpfCnpj, setCpfCnpj] = useState("");
+  const [boletoInfo, setBoletoInfo] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -138,6 +140,47 @@ const Ticket = () => {
     setDrawerOpen(false);
   };
 
+  const handleCpfCnpjChange = (e) => {
+    setCpfCnpj(e.target.value);
+  };
+
+  const handleCpfCnpjSubmit = async () => {
+    try {
+      const token = process.env.BEMTIVI_API_TOKEN; // Coloque aqui o seu token fixo
+
+      const response = await fetch(`https://api-bemtevi.ksys.net.br/cliente?cpfcnpj=${cpfCnpj}`, {
+        headers: {
+          token: token
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.data && data.data.length > 0) {
+        const { cod_cliente, cpfcnpj } = data.data[0];
+
+        const secondResponse = await fetch("https://api-bemtevi.ksys.net.br/cobranca/segundaVia", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            token: token
+          },
+          body: JSON.stringify({
+            codcobranca: 2,
+            codcliente: cod_cliente
+          })
+        });
+
+        const secondData = await secondResponse.json();
+        setBoletoInfo(secondData);
+      } else {
+        toast.error("Cliente não encontrado");
+      }
+    } catch (error) {
+      toastError(error);
+    }
+  };
+
   const renderTicketInfo = () => {
     if (ticket.user !== undefined) {
       return (
@@ -180,6 +223,21 @@ const Ticket = () => {
           <TagsContainer ticket={ticket} />
         </Paper>
         <ReplyMessageProvider>{renderMessagesList()}</ReplyMessageProvider>
+        <div>
+          <TextField
+            label="CPF/CNPJ"
+            value={cpfCnpj}
+            onChange={handleCpfCnpjChange}
+          />
+          <Button onClick={handleCpfCnpjSubmit}>Consultar</Button>
+        </div>
+        {boletoInfo && (
+          <div>
+            <p>Mensagem: {boletoInfo.msg}</p>
+            <p>Link do PDF: <a href={boletoInfo.caminho_pdf} target="_blank" rel="noopener noreferrer">{boletoInfo.caminho_pdf}</a></p>
+            <p>Código de Barras: {boletoInfo.cod_barras}</p>
+          </div>
+        )}
       </Paper>
       <ContactDrawer
         open={drawerOpen}
